@@ -1,0 +1,204 @@
+// app.get("/invoices/:id", (req, res) => {
+//   const userId = req.params.id;
+//   const invoicesql = `
+//         SELECT
+//             id.invoice_id,
+//             id.created_at,
+//             id.payment_due,
+//             id.project_description,
+//             id.payment_terms,
+//             id.client_name,
+//             id.client_email,
+//             id.invoice_status,
+
+//             ca.street AS client_street,
+//             ca.city AS client_city,
+//             ca.postcode AS client_postcode,
+//             ca.country AS client_country,
+
+//             sa.street AS sender_street,
+//             sa.city AS sender_city,
+//             sa.postcode AS sender_postcode,
+//             sa.country AS sender_country
+
+//         FROM
+//             invoice_details AS id
+//         JOIN
+//             client_address AS ca ON id.user_id = ca.user_id AND id.invoice_id = ca.invoice_id
+//         JOIN
+//             sender_address AS sa ON id.user_id = sa.user_id AND id.invoice_id = sa.invoice_id
+//         WHERE
+//             id.user_id = ?
+//         GROUP BY
+//             id.invoice_id;
+
+//   `;
+//   con.query(invoicesql, [userId], (err, invoices) => {
+//     if (err) return res.json(err);
+
+//     // Check if any invoices were found
+//     if (invoices.length === 0) {
+//       console.log("fetchnig invoice unsuccesful - no nvoice found")
+//       return res.json([]); // Return an empty array if no invoices found
+//     }
+
+//     // Create an array to hold promises for fetching invoice items
+//     const invoicePromises = invoices.map((invoice) => {
+//       const sqlItems = `
+//             SELECT
+//                 ii.item_name,
+//                 ii.item_quantity,
+//                 ii.item_price,
+//                 ii.item_total
+//             FROM
+//                 invoice_items AS ii
+//             WHERE
+//                 ii.user_id = ? AND ii.invoice_id = ?;
+//         `;
+//       return new Promise((resolve, reject) => {
+//         con.query(sqlItems, [userId, invoice.invoice_id], (err, items) => {
+//           if (err) return reject(err);
+//           // Add items to the invoice object
+//           invoice.items = items;
+//           resolve(invoice);
+//         });
+//       });
+//     });
+
+// Wait for all promises to resolve
+//     Promise.all(invoicePromises)
+//       .then((invoicesWithItems) => {
+//         console.log("fetchnig invoice items succesful")
+//         return res.json(invoicesWithItems);
+//       })
+//       .catch((err) => {
+//         console.log("fetchnig invoice items unsuccesful")
+//         return res.json(err);
+//       });
+//   });
+// });
+
+// ----------------------------------------------------------------------------------------------------------------------------------------------------------
+// get selected invoice ------------------------------------------------------------------------------------------------------------------------------------------
+// ----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+app.get("/invoiceDetails/:userId/:invoiceId", (req, res) => {
+  const userId = req.params.userId;
+  const invoiceId = req.params.invoiceId;
+
+  const invoicesql = `
+        SELECT
+            id.invoice_id,
+            id.created_at,
+            id.payment_due,
+            id.project_description,
+            id.payment_terms,
+            id.client_name,
+            id.client_email,
+            id.invoice_status,
+
+            ca.street AS client_street,
+            ca.city AS client_city,
+            ca.postcode AS client_postcode,
+            ca.country AS client_country,
+
+            sa.street AS sender_street,
+            sa.city AS sender_city,
+            sa.postcode AS sender_postcode,
+            sa.country AS sender_country
+
+        FROM
+            invoice_details AS id
+        JOIN
+            client_address AS ca ON id.user_id = ca.user_id AND id.invoice_id = ca.invoice_id
+        JOIN
+            sender_address AS sa ON id.user_id = sa.user_id AND id.invoice_id = sa.invoice_id
+        WHERE
+            id.user_id = ? AND id.invoice_id = ?
+        GROUP BY
+            id.invoice_id;
+
+  `;
+  con.query(invoicesql, [userId, invoiceId], (err, invoices) => {
+    if (err) {
+      console.log("error fetching invoice");
+      return res.json(err);
+    }
+
+    // Check if any invoices were found
+    if (invoices.length === 0) {
+      console.log("invoice not found");
+      return res.json([]); // Return an empty array if no invoices found
+    }
+
+    console.log("invoice fetched... fetching items");
+
+    // Create an array to hold promises for fetching invoice items
+    const invoicePromises = invoices.map((invoice) => {
+      const sqlItems = `
+            SELECT
+                ii.item_name,
+                ii.item_quantity,
+                ii.item_price,
+                ii.item_total
+            FROM
+                invoice_items AS ii
+            WHERE
+                ii.user_id = ? AND ii.invoice_id = ?;
+        `;
+      return new Promise((resolve, reject) => {
+        con.query(sqlItems, [userId, invoiceId], (err, items) => {
+          if (err) return reject(err);
+          // Add items to the invoice object
+          invoice.items = items;
+          resolve(invoice);
+        });
+      });
+    });
+
+    // Wait for all promises to resolve
+    Promise.all(invoicePromises)
+      .then((invoicesWithItems) => {
+        return res.json(invoicesWithItems);
+      })
+      .catch((err) => {
+        return res.json(err);
+      });
+  });
+});
+
+// 
+
+
+    // Insert client address
+    await executeQuery(clientAddressQuery, [
+      userId,
+      invoiceDetails.invoice_id,
+      clientAddress.street,
+      clientAddress.city,
+      clientAddress.postcode,
+      clientAddress.country,
+    ]);
+
+    // Insert sender address
+    await executeQuery(senderAddressQuery, [
+      userId,
+      invoiceDetails.invoice_id,
+      senderAddress.street,
+      senderAddress.city,
+      senderAddress.postcode,
+      senderAddress.country,
+    ]);
+
+    // Insert invoice items
+    for (const item of items) {
+      await executeQuery(itemsQuery, [
+        userId,
+        invoiceDetails.invoice_id,
+        item.item_name,
+        item.item_quantity,
+        item.item_price,
+        item.item_total,
+      ]);
+    }
+
